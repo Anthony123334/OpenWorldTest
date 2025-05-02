@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Detailed Open World</title>
+  <title>Structured Open World</title>
   <style>
     body {
       margin: 0;
@@ -38,20 +38,30 @@
   const terrainCols = Math.ceil(world.width / tileSize);
   const terrainRows = Math.ceil(world.height / tileSize);
 
-  // Terrain types and colors
-  const terrainTypes = [
-    { type: "grass", color: "#27ae60" },
-    { type: "dirt",  color: "#8e5c42" },
-    { type: "sand",  color: "#f4d03f" },
-    { type: "water", color: "#2980b9" },
-    { type: "stone", color: "#7f8c8d" }
-  ];
+  // Terrain color palette
+  const terrainColors = {
+    grass: '#27ae60',
+    water: '#3498db',
+    sand: '#f1c40f',
+    mountain: '#7f8c8d',
+    forest: '#145a32'
+  };
 
-  // Generate terrain grid
+  // Organized terrain generation
   const terrain = Array.from({ length: terrainCols }, (_, col) =>
     Array.from({ length: terrainRows }, (_, row) => {
-      const terrainType = terrainTypes[Math.floor(Math.random() * terrainTypes.length)];
-      return { ...terrainType };
+      const x = col * tileSize;
+      const y = row * tileSize;
+
+      // Define zones
+      const distanceFromCenter = Math.hypot(x - world.width / 2, y - world.height / 2);
+
+      if (distanceFromCenter > 800) return { type: 'water', color: terrainColors.water };
+      if (row < 10) return { type: 'mountain', color: terrainColors.mountain };
+      if (col > 30 && col < 40 && row > 25 && row < 35) return { type: 'forest', color: terrainColors.forest };
+      if (distanceFromCenter > 600) return { type: 'sand', color: terrainColors.sand };
+
+      return { type: 'grass', color: terrainColors.grass };
     })
   );
 
@@ -66,7 +76,7 @@
 
   const keys = {};
 
-  const objects = Array.from({ length: 150 }, () => ({
+  const objects = Array.from({ length: 100 }, () => ({
     x: Math.random() * world.width,
     y: Math.random() * world.height,
     width: 20 + Math.random() * 20,
@@ -93,17 +103,18 @@
     // Draw terrain tiles
     for (let col = 0; col < terrainCols; col++) {
       for (let row = 0; row < terrainRows; row++) {
+        const tile = terrain[col][row];
         const tileX = col * tileSize - offsetX;
         const tileY = row * tileSize - offsetY;
 
-        // Only draw if tile is on screen
+        // Only draw visible tiles
         if (
           tileX + tileSize >= 0 &&
           tileY + tileSize >= 0 &&
           tileX < canvas.width &&
           tileY < canvas.height
         ) {
-          ctx.fillStyle = terrain[col][row].color;
+          ctx.fillStyle = tile.color;
           ctx.fillRect(tileX, tileY, tileSize, tileSize);
         }
       }
