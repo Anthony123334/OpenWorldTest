@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Diverse Biome World</title>
+  <title>Biome-Based Open World</title>
   <style>
     body {
       margin: 0;
@@ -38,6 +38,7 @@
   const terrainCols = Math.ceil(world.width / tileSize);
   const terrainRows = Math.ceil(world.height / tileSize);
 
+  // Biome colors
   const terrainColors = {
     water: '#3498db',
     sand: '#f1c40f',
@@ -47,21 +48,25 @@
     mountain: '#bdc3c7'
   };
 
-  // Generate noise-like value
+  // Random seed to vary terrain on reload
+  const seed = Math.random() * 1000;
+
   function pseudoNoise(x, y) {
-    return Math.abs(Math.sin(x * 0.05 + y * 0.05 + (x * y) * 0.00005));
+    const value = Math.sin((x + seed) * 0.07 + (y + seed) * 0.05) +
+                  Math.cos((x + seed) * 0.03 - (y + seed) * 0.04);
+    return (value + 2) / 4; // Normalize to 0–1
   }
 
-  // Map noise value to terrain
   function getTerrainType(value) {
-    if (value < 0.3) return 'water';
-    if (value < 0.4) return 'sand';
-    if (value < 0.6) return 'grass';
+    if (value < 0.25) return 'water';
+    if (value < 0.35) return 'sand';
+    if (value < 0.55) return 'grass';
     if (value < 0.7) return 'forest';
     if (value < 0.85) return 'hill';
     return 'mountain';
   }
 
+  // Generate biome-based terrain
   const terrain = Array.from({ length: terrainCols }, (_, col) =>
     Array.from({ length: terrainRows }, (_, row) => {
       const noiseValue = pseudoNoise(col, row);
@@ -81,14 +86,6 @@
 
   const keys = {};
 
-  const objects = Array.from({ length: 100 }, () => ({
-    x: Math.random() * world.width,
-    y: Math.random() * world.height,
-    width: 20 + Math.random() * 20,
-    height: 20 + Math.random() * 20,
-    color: '#e74c3c'
-  }));
-
   function update() {
     if (keys['ArrowUp']) player.y -= player.speed;
     if (keys['ArrowDown']) player.y += player.speed;
@@ -105,7 +102,6 @@
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw terrain tiles
     for (let col = 0; col < terrainCols; col++) {
       for (let row = 0; row < terrainRows; row++) {
         const tile = terrain[col][row];
@@ -122,14 +118,6 @@
           ctx.fillRect(tileX, tileY, tileSize, tileSize);
         }
       }
-    }
-
-    // Draw objects
-    for (const obj of objects) {
-      const objX = obj.x - offsetX;
-      const objY = obj.y - offsetY;
-      ctx.fillStyle = obj.color;
-      ctx.fillRect(objX, objY, obj.width, obj.height);
     }
 
     // Draw player
