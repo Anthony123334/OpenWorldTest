@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Open World Game</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      background: #2c3e50;
+    }
+  </style>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const world = {
+    width: 2000,
+    height: 2000
+  };
+
+  const player = {
+    x: world.width / 2,
+    y: world.height / 2,
+    width: 40,
+    height: 40,
+    color: '#27ae60',
+    speed: 4
+  };
+
+  const keys = {};
+
+  // Generate random world objects
+  const objects = Array.from({ length: 100 }, () => ({
+    x: Math.random() * world.width,
+    y: Math.random() * world.height,
+    width: 40,
+    height: 40,
+    color: '#e74c3c'
+  }));
+
+  function update() {
+    if (keys['ArrowUp']) player.y -= player.speed;
+    if (keys['ArrowDown']) player.y += player.speed;
+    if (keys['ArrowLeft']) player.x -= player.speed;
+    if (keys['ArrowRight']) player.x += player.speed;
+
+    // Keep player in bounds
+    player.x = Math.max(0, Math.min(world.width - player.width, player.x));
+    player.y = Math.max(0, Math.min(world.height - player.height, player.y));
+  }
+
+  function draw() {
+    // Calculate camera offset
+    const offsetX = player.x - canvas.width / 2 + player.width / 2;
+    const offsetY = player.y - canvas.height / 2 + player.height / 2;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw background grid
+    ctx.fillStyle = '#34495e';
+    for (let x = 0; x < world.width; x += 100) {
+      for (let y = 0; y < world.height; y += 100) {
+        ctx.fillRect(x - offsetX, y - offsetY, 2, 2);
+      }
+    }
+
+    // Draw world objects
+    for (const obj of objects) {
+      ctx.fillStyle = obj.color;
+      ctx.fillRect(obj.x - offsetX, obj.y - offsetY, obj.width, obj.height);
+    }
+
+    // Draw player
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x - offsetX, player.y - offsetY, player.width, player.height);
+  }
+
+  function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => keys[e.key] = true);
+  document.addEventListener('keyup', e => keys[e.key] = false);
+
+  gameLoop();
+</script>
+</body>
+</html>
