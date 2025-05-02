@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Open World Game</title>
+  <title>Detailed Open World</title>
   <style>
     body {
       margin: 0;
@@ -15,34 +15,62 @@
   </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="800" height="600"></canvas>
+<canvas id="gameCanvas"></canvas>
 
 <script>
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
 
   const world = {
     width: 2000,
     height: 2000
   };
 
+  const tileSize = 40;
+  const terrainCols = Math.ceil(world.width / tileSize);
+  const terrainRows = Math.ceil(world.height / tileSize);
+
+  // Terrain types and colors
+  const terrainTypes = [
+    { type: "grass", color: "#27ae60" },
+    { type: "dirt",  color: "#8e5c42" },
+    { type: "sand",  color: "#f4d03f" },
+    { type: "water", color: "#2980b9" },
+    { type: "stone", color: "#7f8c8d" }
+  ];
+
+  // Generate terrain grid
+  const terrain = Array.from({ length: terrainCols }, (_, col) =>
+    Array.from({ length: terrainRows }, (_, row) => {
+      const terrainType = terrainTypes[Math.floor(Math.random() * terrainTypes.length)];
+      return { ...terrainType };
+    })
+  );
+
   const player = {
     x: world.width / 2,
     y: world.height / 2,
-    width: 40,
-    height: 40,
-    color: '#27ae60',
+    width: 30,
+    height: 30,
+    color: '#ffffff',
     speed: 4
   };
 
   const keys = {};
 
-  // Generate random world objects
-  const objects = Array.from({ length: 100 }, () => ({
+  const objects = Array.from({ length: 150 }, () => ({
     x: Math.random() * world.width,
     y: Math.random() * world.height,
-    width: 40,
-    height: 40,
+    width: 20 + Math.random() * 20,
+    height: 20 + Math.random() * 20,
     color: '#e74c3c'
   }));
 
@@ -52,30 +80,41 @@
     if (keys['ArrowLeft']) player.x -= player.speed;
     if (keys['ArrowRight']) player.x += player.speed;
 
-    // Keep player in bounds
     player.x = Math.max(0, Math.min(world.width - player.width, player.x));
     player.y = Math.max(0, Math.min(world.height - player.height, player.y));
   }
 
   function draw() {
-    // Calculate camera offset
     const offsetX = player.x - canvas.width / 2 + player.width / 2;
     const offsetY = player.y - canvas.height / 2 + player.height / 2;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw background grid
-    ctx.fillStyle = '#34495e';
-    for (let x = 0; x < world.width; x += 100) {
-      for (let y = 0; y < world.height; y += 100) {
-        ctx.fillRect(x - offsetX, y - offsetY, 2, 2);
+    // Draw terrain tiles
+    for (let col = 0; col < terrainCols; col++) {
+      for (let row = 0; row < terrainRows; row++) {
+        const tileX = col * tileSize - offsetX;
+        const tileY = row * tileSize - offsetY;
+
+        // Only draw if tile is on screen
+        if (
+          tileX + tileSize >= 0 &&
+          tileY + tileSize >= 0 &&
+          tileX < canvas.width &&
+          tileY < canvas.height
+        ) {
+          ctx.fillStyle = terrain[col][row].color;
+          ctx.fillRect(tileX, tileY, tileSize, tileSize);
+        }
       }
     }
 
-    // Draw world objects
+    // Draw objects
     for (const obj of objects) {
+      const objX = obj.x - offsetX;
+      const objY = obj.y - offsetY;
       ctx.fillStyle = obj.color;
-      ctx.fillRect(obj.x - offsetX, obj.y - offsetY, obj.width, obj.height);
+      ctx.fillRect(objX, objY, obj.width, obj.height);
     }
 
     // Draw player
