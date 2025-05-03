@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Biome-Based Open World</title>
+  <title>Persistent Infinite Biome World</title>
   <style>
     body {
       margin: 0;
@@ -25,20 +25,12 @@
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
   }
-
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
 
-  const world = {
-    width: 2000,
-    height: 2000
-  };
-
   const tileSize = 40;
-  const terrainCols = Math.ceil(world.width / tileSize);
-  const terrainRows = Math.ceil(world.height / tileSize);
+  const seed = Math.random() * 10000;
 
-  // Biome colors
   const terrainColors = {
     water: '#3498db',
     sand: '#f1c40f',
@@ -48,13 +40,13 @@
     mountain: '#bdc3c7'
   };
 
-  // Random seed to vary terrain on reload
-  const seed = Math.random() * 1000;
+  // Cache for generated tiles
+  const tileCache = new Map();
 
   function pseudoNoise(x, y) {
     const value = Math.sin((x + seed) * 0.07 + (y + seed) * 0.05) +
                   Math.cos((x + seed) * 0.03 - (y + seed) * 0.04);
-    return (value + 2) / 4; // Normalize to 0–1
+    return (value + 2) / 4;
   }
 
   function getTerrainType(value) {
@@ -66,18 +58,24 @@
     return 'mountain';
   }
 
-  // Generate biome-based terrain
-  const terrain = Array.from({ length: terrainCols }, (_, col) =>
-    Array.from({ length: terrainRows }, (_, row) => {
-      const noiseValue = pseudoNoise(col, row);
-      const type = getTerrainType(noiseValue);
-      return { type, color: terrainColors[type] };
-    })
-  );
+  function getTile(col, row) {
+    const key = `${col},${row}`;
+    if (tileCache.has(key)) {
+      return tileCache.get(key);
+    }
+
+    const noiseValue = pseudoNoise(col, row);
+    const type = getTerrainType(noiseValue);
+    const color = terrainColors[type];
+
+    const tile = { type, color };
+    tileCache.set(key, tile);
+    return tile;
+  }
 
   const player = {
-    x: world.width / 2,
-    y: world.height / 2,
+    x: 0,
+    y: 0,
     width: 30,
     height: 30,
     color: '#ffffff',
@@ -91,38 +89,36 @@
     if (keys['ArrowDown']) player.y += player.speed;
     if (keys['ArrowLeft']) player.x -= player.speed;
     if (keys['ArrowRight']) player.x += player.speed;
-
-    player.x = Math.max(0, Math.min(world.width - player.width, player.x));
-    player.y = Math.max(0, Math.min(world.height - player.height, player.y));
   }
 
   function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     const offsetX = player.x - canvas.width / 2 + player.width / 2;
     const offsetY = player.y - canvas.height / 2 + player.height / 2;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const startCol = Math.floor(offsetX / tileSize) - 1;
+    const endCol = Math.floor((offsetX + canvas.width) / tileSize) + 1;
+    const startRow = Math.floor(offsetY / tileSize) - 1;
+    const endRow = Math.floor((offsetY + canvas.height) / tileSize) + 1;
 
-    for (let col = 0; col < terrainCols; col++) {
-      for (let row = 0; row < terrainRows; row++) {
-        const tile = terrain[col][row];
+    for (let col = startCol; col < endCol; col++) {
+      for (let row = startRow; row < endRow; row++) {
+        const tile = getTile(col, row);
+
         const tileX = col * tileSize - offsetX;
         const tileY = row * tileSize - offsetY;
 
-        if (
-          tileX + tileSize >= 0 &&
-          tileY + tileSize >= 0 &&
-          tileX < canvas.width &&
-          tileY < canvas.height
-        ) {
-          ctx.fillStyle = tile.color;
-          ctx.fillRect(tileX, tileY, tileSize, tileSize);
-        }
+        ctx.fillStyle = tile.color;
+        ctx.fillRect(tileX, tileY, tileSize, tileSize);
       }
     }
 
     // Draw player
+    const playerScreenX = canvas.width / 2 - player.width / 2;
+    const playerScreenY = canvas.height / 2 - player.height / 2;
     ctx.fillStyle = player.color;
-    ctx.fillRect(player.x - offsetX, player.y - offsetY, player.width, player.height);
+    ctx.fillRect(playerScreenX, playerScreenY, player.width, player.height);
   }
 
   function gameLoop() {
@@ -138,3 +134,4 @@
 </script>
 </body>
 </html>
+
