@@ -40,19 +40,14 @@ resizeCanvas();
 
 const tileSize = 40;
 const seed = Math.random() * 10000;
-
 const terrainColors = {
-  water: '#3498db',
-  sand: '#f1c40f',
-  grass: '#27ae60',
-  forest: '#145a32',
-  hill: '#7f8c8d',
-  mountain: '#bdc3c7'
+  water: '#3498db', sand: '#f1c40f', grass: '#27ae60',
+  forest: '#145a32', hill: '#7f8c8d', mountain: '#bdc3c7'
 };
 
 const tileCache = new Map();
-const structureCache = new Map();
-const npcList = [];
+const villageCache = new Map();
+let villageNames = ["Oakwood", "Rivermoor", "Stonehill", "Brightvale", "Frostford"];
 
 let inventory = { wood: 0 };
 let activeQuest = null;
@@ -72,6 +67,20 @@ function getTerrainType(value) {
   return 'mountain';
 }
 
+function generateVillage(centerX, centerY) {
+  const name = villageNames.shift() || `Village${villageCache.size}`;
+  const buildings = [];
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dy = -2; dy <= 2; dy++) {
+      if (Math.random() < 0.5) {
+        buildings.push({ x: centerX + dx, y: centerY + dy });
+      }
+    }
+  }
+  const key = `${centerX},${centerY}`;
+  villageCache.set(key, { name, centerX, centerY, buildings });
+}
+
 function getTile(col, row) {
   const key = `${col},${row}`;
   if (tileCache.has(key)) return tileCache.get(key);
@@ -82,38 +91,17 @@ function getTile(col, row) {
   const tile = { type, color };
   tileCache.set(key, tile);
 
-  // Random structures
-  if ((type === 'grass' || type === 'forest') && Math.random() < 0.002) {
-    const structureTypes = ['hut', 'cabin', 'tower'];
-    const structType = structureTypes[Math.floor(Math.random() * structureTypes.length)];
-    const size = structType === 'tower' ? 30 : structType === 'cabin' ? 40 : 20;
-    structureCache.set(key, { x: col, y: row, width: size, height: size, type: structType });
-
-    // NPC
-    npcList.push({
-      x: col * tileSize + 5,
-      y: row * tileSize + 5,
-      color: '#ffcc00',
-      vx: Math.random() * 1 - 0.5,
-      vy: Math.random() * 1 - 0.5,
-      questGiven: false
-    });
+  // Generate village clusters
+  if (type === 'grass' && Math.random() < 0.0005) {
+    generateVillage(col, row);
   }
 
   return tile;
 }
 
-const player = {
-  x: 0,
-  y: 0,
-  width: 30,
-  height: 30,
-  color: '#ffffff',
-  speed: 4
-};
-
+const player = { x: 0, y: 0, width: 30, height: 30, color: '#ffffff', speed: 4 };
 const keys = {};
-let timeOfDay = 0; // 0 to 1 cycle
+let timeOfDay = 0;
 
 function update() {
   if (keys['ArrowUp']) player.y -= player.speed;
@@ -121,50 +109,8 @@ function update() {
   if (keys['ArrowLeft']) player.x -= player.speed;
   if (keys['ArrowRight']) player.x += player.speed;
 
-  if (keys['e']) gatherWood();
-
-  // Day-night cycle slower
   timeOfDay += 0.0001;
   if (timeOfDay > 1) timeOfDay = 0;
-
-  // NPC movement + quest check
-  for (const npc of npcList) {
-    npc.x += npc.vx;
-    npc.y += npc.vy;
-    if (Math.random() < 0.01) {
-      npc.vx *= -1;
-      npc.vy *= -1;
-    }
-
-    const dx = npc.x - player.x;
-    const dy = npc.y - player.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist < 40 && !npc.questGiven) {
-      npc.questGiven = true;
-      activeQuest = { task: "Collect 5 wood", woodNeeded: 5 };
-      updateUI();
-    }
-  }
-
-  // Quest complete?
-  if (activeQuest && inventory.wood >= activeQuest.woodNeeded) {
-    activeQuest.task = "Quest complete!";
-  }
-}
-
-function updateUI() {
-  inventoryEl.textContent = `Wood: ${inventory.wood}`;
-  questEl.textContent = activeQuest ? activeQuest.task : "None";
-}
-
-function gatherWood() {
-  const col = Math.floor(player.x / tileSize);
-  const row = Math.floor(player.y / tileSize);
-  const tile = getTile(col, row);
-  if (tile.type === 'forest') {
-    inventory.wood++;
-    updateUI();
-  }
 }
 
 function getSkyOverlayColor() {
@@ -192,23 +138,23 @@ function draw() {
       const tileY = row * tileSize - offsetY;
       ctx.fillStyle = tile.color;
       ctx.fillRect(tileX, tileY, tileSize, tileSize);
-
-      const key = `${col},${row}`;
-      if (structureCache.has(key)) {
-        const s = structureCache.get(key);
-        ctx.fillStyle = s.type === 'hut' ? '#8e44ad' :
-                        s.type === 'cabin' ? '#d35400' : '#34495e';
-        ctx.fillRect(tileX + 5, tileY + 5, s.width / 2, s.height / 2);
-      }
     }
   }
 
-  // Draw NPCs
-  for (const npc of npcList) {
-    const npcX = npc.x - offsetX;
-    const npcY = npc.y - offsetY;
-    ctx.fillStyle = npc.color;
-    ctx.fillRect(npcX, npcY, 10, 10);
+  // Draw villages
+  for (const [key, village] of villageCache.entries()) {
+    const cx = village.centerX * tileSize - offsetX;
+    const cy = village.centerY * tileSize - offsetY;
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.strokeRect(cx - 120, cy - 120, 240, 240);
+    ctx.fillStyle = 'white';
+    ctx.fillText(village.name, cx - 30, cy - 130);
+    for (const b of village.buildings) {
+      const bx = b.x * tileSize - offsetX + 10;
+      const by = b.y * tileSize - offsetY + 10;
+      ctx.fillStyle = '#8e44ad';
+      ctx.fillRect(bx, by, 20, 20);
+    }
   }
 
   // Player
@@ -217,7 +163,6 @@ function draw() {
   ctx.fillStyle = player.color;
   ctx.fillRect(px, py, player.width, player.height);
 
-  // Sky darkening
   ctx.fillStyle = getSkyOverlayColor();
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
@@ -228,9 +173,8 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
-document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
 gameLoop();
 </script>
 </body>
