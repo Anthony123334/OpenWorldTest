@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Persistent Infinite Biome World</title>
+  <title>Infinite World with Day/Night, Structures, NPCs</title>
   <style>
     body {
       margin: 0;
@@ -18,120 +18,174 @@
 <canvas id="gameCanvas"></canvas>
 
 <script>
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-  function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const tileSize = 40;
+const seed = Math.random() * 10000;
+const terrainColors = {
+  water: '#3498db',
+  sand: '#f1c40f',
+  grass: '#27ae60',
+  forest: '#145a32',
+  hill: '#7f8c8d',
+  mountain: '#bdc3c7'
+};
+
+const tileCache = new Map();
+const structureCache = new Map();
+const npcList = [];
+
+function pseudoNoise(x, y) {
+  const value = Math.sin((x + seed) * 0.07 + (y + seed) * 0.05) +
+                Math.cos((x + seed) * 0.03 - (y + seed) * 0.04);
+  return (value + 2) / 4;
+}
+
+function getTerrainType(value) {
+  if (value < 0.25) return 'water';
+  if (value < 0.35) return 'sand';
+  if (value < 0.55) return 'grass';
+  if (value < 0.7) return 'forest';
+  if (value < 0.85) return 'hill';
+  return 'mountain';
+}
+
+function getTile(col, row) {
+  const key = `${col},${row}`;
+  if (tileCache.has(key)) return tileCache.get(key);
+
+  const noise = pseudoNoise(col, row);
+  const type = getTerrainType(noise);
+  const color = terrainColors[type];
+  const tile = { type, color };
+  tileCache.set(key, tile);
+
+  // Occasionally place structures on grass or forest
+  if ((type === 'grass' || type === 'forest') && Math.random() < 0.002) {
+    structureCache.set(key, { x: col, y: row, width: tileSize, height: tileSize, type: 'hut' });
+
+    // Spawn NPC near the hut
+    npcList.push({
+      x: col * tileSize + 5,
+      y: row * tileSize + 5,
+      color: '#ffcc00',
+      vx: Math.random() * 1 - 0.5,
+      vy: Math.random() * 1 - 0.5
+    });
   }
-  window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
 
-  const tileSize = 40;
-  const seed = Math.random() * 10000;
+  return tile;
+}
 
-  const terrainColors = {
-    water: '#3498db',
-    sand: '#f1c40f',
-    grass: '#27ae60',
-    forest: '#145a32',
-    hill: '#7f8c8d',
-    mountain: '#bdc3c7'
-  };
+const player = {
+  x: 0,
+  y: 0,
+  width: 30,
+  height: 30,
+  color: '#ffffff',
+  speed: 4
+};
 
-  // Cache for generated tiles
-  const tileCache = new Map();
+const keys = {};
+let timeOfDay = 0; // 0 to 1 (0 = midnight, 0.5 = noon, 1 = midnight again)
 
-  function pseudoNoise(x, y) {
-    const value = Math.sin((x + seed) * 0.07 + (y + seed) * 0.05) +
-                  Math.cos((x + seed) * 0.03 - (y + seed) * 0.04);
-    return (value + 2) / 4;
-  }
+function update() {
+  if (keys['ArrowUp']) player.y -= player.speed;
+  if (keys['ArrowDown']) player.y += player.speed;
+  if (keys['ArrowLeft']) player.x -= player.speed;
+  if (keys['ArrowRight']) player.x += player.speed;
 
-  function getTerrainType(value) {
-    if (value < 0.25) return 'water';
-    if (value < 0.35) return 'sand';
-    if (value < 0.55) return 'grass';
-    if (value < 0.7) return 'forest';
-    if (value < 0.85) return 'hill';
-    return 'mountain';
-  }
+  // Update NPCs
+  for (const npc of npcList) {
+    npc.x += npc.vx;
+    npc.y += npc.vy;
 
-  function getTile(col, row) {
-    const key = `${col},${row}`;
-    if (tileCache.has(key)) {
-      return tileCache.get(key);
+    // Bounce slightly
+    if (Math.random() < 0.01) {
+      npc.vx *= -1;
+      npc.vy *= -1;
     }
-
-    const noiseValue = pseudoNoise(col, row);
-    const type = getTerrainType(noiseValue);
-    const color = terrainColors[type];
-
-    const tile = { type, color };
-    tileCache.set(key, tile);
-    return tile;
   }
 
-  const player = {
-    x: 0,
-    y: 0,
-    width: 30,
-    height: 30,
-    color: '#ffffff',
-    speed: 4
-  };
+  // Day-night cycle increment
+  timeOfDay += 0.0005;
+  if (timeOfDay > 1) timeOfDay = 0;
+}
 
-  const keys = {};
+function getSkyOverlayColor() {
+  // Transition from dark (night) to clear (day) and back
+  const brightness = Math.sin(timeOfDay * 2 * Math.PI) * 0.5 + 0.5; // 0–1
+  const darkness = 1 - brightness;
+  const alpha = Math.min(0.7, darkness); // limit darkness
+  return `rgba(0, 0, 0, ${alpha})`;
+}
 
-  function update() {
-    if (keys['ArrowUp']) player.y -= player.speed;
-    if (keys['ArrowDown']) player.y += player.speed;
-    if (keys['ArrowLeft']) player.x -= player.speed;
-    if (keys['ArrowRight']) player.x += player.speed;
-  }
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const offsetX = player.x - canvas.width / 2 + player.width / 2;
+  const offsetY = player.y - canvas.height / 2 + player.height / 2;
 
-    const offsetX = player.x - canvas.width / 2 + player.width / 2;
-    const offsetY = player.y - canvas.height / 2 + player.height / 2;
+  const startCol = Math.floor(offsetX / tileSize) - 1;
+  const endCol = Math.floor((offsetX + canvas.width) / tileSize) + 1;
+  const startRow = Math.floor(offsetY / tileSize) - 1;
+  const endRow = Math.floor((offsetY + canvas.height) / tileSize) + 1;
 
-    const startCol = Math.floor(offsetX / tileSize) - 1;
-    const endCol = Math.floor((offsetX + canvas.width) / tileSize) + 1;
-    const startRow = Math.floor(offsetY / tileSize) - 1;
-    const endRow = Math.floor((offsetY + canvas.height) / tileSize) + 1;
+  for (let col = startCol; col < endCol; col++) {
+    for (let row = startRow; row < endRow; row++) {
+      const tile = getTile(col, row);
+      const tileX = col * tileSize - offsetX;
+      const tileY = row * tileSize - offsetY;
 
-    for (let col = startCol; col < endCol; col++) {
-      for (let row = startRow; row < endRow; row++) {
-        const tile = getTile(col, row);
+      ctx.fillStyle = tile.color;
+      ctx.fillRect(tileX, tileY, tileSize, tileSize);
 
-        const tileX = col * tileSize - offsetX;
-        const tileY = row * tileSize - offsetY;
-
-        ctx.fillStyle = tile.color;
-        ctx.fillRect(tileX, tileY, tileSize, tileSize);
+      // Draw structure if present
+      const key = `${col},${row}`;
+      if (structureCache.has(key)) {
+        ctx.fillStyle = '#8e44ad'; // purple hut
+        ctx.fillRect(tileX + 10, tileY + 10, 20, 20);
       }
     }
-
-    // Draw player
-    const playerScreenX = canvas.width / 2 - player.width / 2;
-    const playerScreenY = canvas.height / 2 - player.height / 2;
-    ctx.fillStyle = player.color;
-    ctx.fillRect(playerScreenX, playerScreenY, player.width, player.height);
   }
 
-  function gameLoop() {
-    update();
-    draw();
-    requestAnimationFrame(gameLoop);
+  // Draw NPCs
+  for (const npc of npcList) {
+    const npcX = npc.x - offsetX;
+    const npcY = npc.y - offsetY;
+    ctx.fillStyle = npc.color;
+    ctx.fillRect(npcX, npcY, 10, 10);
   }
 
-  document.addEventListener('keydown', e => keys[e.key] = true);
-  document.addEventListener('keyup', e => keys[e.key] = false);
+  // Draw player
+  const playerScreenX = canvas.width / 2 - player.width / 2;
+  const playerScreenY = canvas.height / 2 - player.height / 2;
+  ctx.fillStyle = player.color;
+  ctx.fillRect(playerScreenX, playerScreenY, player.width, player.height);
 
-  gameLoop();
+  // Day-night overlay
+  ctx.fillStyle = getSkyOverlayColor();
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
+
+gameLoop();
 </script>
 </body>
 </html>
-
