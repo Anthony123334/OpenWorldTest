@@ -21,7 +21,7 @@
 <body>
 <canvas id="gameCanvas"></canvas>
 <div id="ui">
-  <div><strong>Inventory:</strong> <span id="inventory">Wood: 0</span></div>
+  <div><strong>Inventory:</strong> <span id="inventory">Wood: 0 | Stone: 0</span></div>
   <div><strong>Quest:</strong> <span id="quest">None</span></div>
 </div>
 
@@ -49,7 +49,7 @@ const tileCache = new Map();
 const villageCache = new Map();
 let villageNames = ["Oakwood", "Rivermoor", "Stonehill", "Brightvale", "Frostford"];
 
-let inventory = { wood: 0 };
+let inventory = { wood: 0, stone: 0 };
 let activeQuest = null;
 
 function pseudoNoise(x, y) {
@@ -69,16 +69,17 @@ function getTerrainType(value) {
 
 function generateVillage(centerX, centerY) {
   const name = villageNames.shift() || `Village${villageCache.size}`;
+  const size = Math.floor(Math.random() * 4) + 2;
   const buildings = [];
-  for (let dx = -2; dx <= 2; dx++) {
-    for (let dy = -2; dy <= 2; dy++) {
+  for (let dx = -size; dx <= size; dx++) {
+    for (let dy = -size; dy <= size; dy++) {
       if (Math.random() < 0.5) {
         buildings.push({ x: centerX + dx, y: centerY + dy });
       }
     }
   }
   const key = `${centerX},${centerY}`;
-  villageCache.set(key, { name, centerX, centerY, buildings });
+  villageCache.set(key, { name, centerX, centerY, size, buildings });
 }
 
 function getTile(col, row) {
@@ -88,7 +89,7 @@ function getTile(col, row) {
   const noise = pseudoNoise(col, row);
   const type = getTerrainType(noise);
   const color = terrainColors[type];
-  const tile = { type, color };
+  const tile = { type, color, built: false };
   tileCache.set(key, tile);
 
   // Generate village clusters
@@ -108,9 +109,32 @@ function update() {
   if (keys['ArrowDown']) player.y += player.speed;
   if (keys['ArrowLeft']) player.x -= player.speed;
   if (keys['ArrowRight']) player.x += player.speed;
+  if (keys['m']) mine();
+  if (keys['b']) build();
 
   timeOfDay += 0.0001;
   if (timeOfDay > 1) timeOfDay = 0;
+
+  inventoryEl.textContent = `Wood: ${inventory.wood} | Stone: ${inventory.stone}`;
+}
+
+function mine() {
+  const col = Math.floor(player.x / tileSize);
+  const row = Math.floor(player.y / tileSize);
+  const tile = getTile(col, row);
+  if (tile.type === 'forest') inventory.wood++;
+  if (tile.type === 'hill' || tile.type === 'mountain') inventory.stone++;
+}
+
+function build() {
+  const col = Math.floor(player.x / tileSize);
+  const row = Math.floor(player.y / tileSize);
+  const tile = getTile(col, row);
+  if (!tile.built && inventory.wood >= 2 && inventory.stone >= 1) {
+    tile.built = true;
+    inventory.wood -= 2;
+    inventory.stone -= 1;
+  }
 }
 
 function getSkyOverlayColor() {
@@ -136,7 +160,7 @@ function draw() {
       const tile = getTile(col, row);
       const tileX = col * tileSize - offsetX;
       const tileY = row * tileSize - offsetY;
-      ctx.fillStyle = tile.color;
+      ctx.fillStyle = tile.built ? '#e67e22' : tile.color;
       ctx.fillRect(tileX, tileY, tileSize, tileSize);
     }
   }
@@ -145,10 +169,11 @@ function draw() {
   for (const [key, village] of villageCache.entries()) {
     const cx = village.centerX * tileSize - offsetX;
     const cy = village.centerY * tileSize - offsetY;
+    const size = village.size * tileSize;
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.strokeRect(cx - 120, cy - 120, 240, 240);
+    ctx.strokeRect(cx - size, cy - size, size * 2, size * 2);
     ctx.fillStyle = 'white';
-    ctx.fillText(village.name, cx - 30, cy - 130);
+    ctx.fillText(village.name, cx - 30, cy - size - 10);
     for (const b of village.buildings) {
       const bx = b.x * tileSize - offsetX + 10;
       const by = b.y * tileSize - offsetY + 10;
